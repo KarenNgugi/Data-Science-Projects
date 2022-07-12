@@ -1,0 +1,534 @@
+---
+title: "Core Week 12 IP"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. INTRODUCTION
+
+### 1.1 Defining the Question
+My work is to identify which facators determine whether a user clicks on an ad or not.
+
+### 1.2 Setting the Metric for Success
+The project will be considered a success when I am able to identify what makes a user more likely to click on an ad.
+
+### 1.3 Outlining the Context
+A Kenyan entrepreneur has created an online cryptography course and would want to advertise it on her blog. She currently targets audiences originating from various countries. In the past, she ran ads to advertise a related course on the same blog and collected data in the process. She would now like to employ your services as a Data Science Consultant to help her identify which individuals are most likely to click on her ads.
+
+### 1.4 Drafting the Experimental Design
+1. Define the question, set the metric for success, outline the context, drafting the experimental design, and determining the appropriateness of the data.
+2. Load the dataset and previewing it.
+3. Check for missing and duplicated values and deal with them where necessary.
+4. Check for outliers and other anomalies and deal with them where necessary.
+5. Perform univariate and bivariate analysis.
+6. Create a baseline model and assess its accuracy score.
+7. Challenge the solution.
+8. Conclude and provide insights on how this project can be improved.
+
+### 1.5 Determining the Appropriateness of the Data
+
+
+## 2. Data Preparation and Cleaning
+```{r}
+# importing and previewing the dataset
+data <- read.csv("advertising.csv", header = TRUE)
+head(data)
+```
+
+```{r}
+# finding the number of rows and columns
+dim(data)
+```
+This shows us that we have 1000 rows and 10 columns.
+
+```{r}
+# previewing basic information
+str(data)
+```
+Here we see that the following columns have the following data types:
+
+  - Daily.Time.Spent.on.Site : numerical
+  - Age : integer
+  - Area.Income  : numerical
+  - Daily.Internet.Usage : numerical
+  - Ad.Topic.Line  : Factor with 1000 levels
+  - City : Factor with 969 levels
+  - Male : integer
+  - Country : Factor with 237 levels
+  - Timestamp : Factor with 1000 levels
+  - Clicked.on.Ad : integer
+  
+* Numerical means it is a number which can be either a whole number or a decimal.
+* Integer means it is a whole number only.
+* Factor means it is a categorical (non-numeric) value. Factor with x levels means it has x unique values, e.g. Country is a Factor wit 237 levels meaning it has 237 unique categorical values.
+
+```{r}
+# checking for duplicates
+anyDuplicated(data)
+```
+There are no duplicated records so there is no need to remove any of them.
+
+
+
+```{r}
+# looking for missing values
+colSums(is.na(data))
+```
+There are no missing values in each column so we don't need to carry out imputation or replacement.
+
+We should modify the dataset so as to make it easier to work with. We will start by changing the column names and then change the "Male" and "Clicked on Ad" columns to be categorical variables (Factors) instead of numerical variables because it makes more logical sense that way.
+```{r}
+# get column names
+colnames(data)
+
+# rename them
+names(data)[names(data) == "Daily.Time.Spent.on.Site"] <- "daily_time_spent"
+names(data)[names(data) == "Age"] <- "age"
+names(data)[names(data) == "Area.Income"] <- "area_income"
+names(data)[names(data) == "Daily.Internet.Usage"] <- "daily_internet_usage"
+names(data)[names(data) == "Ad.Topic.Line"] <- "ad_topic_line"
+names(data)[names(data) == "City"] <- "city"
+names(data)[names(data) == "Male"] <- "male"
+names(data)[names(data) == "Country"] <- "country"
+names(data)[names(data) == "Timestamp"] <- "timestamp"
+names(data)[names(data) == "Clicked.on.Ad"] <- "clicked_on_ad"
+
+# now previewing to confirm they've been changed
+colnames(data)
+```
+
+```{r}
+# changing the data types of the "male" and "clicked_on_ad" columns from integer to factor
+data$male <- as.factor(data$male)
+data$clicked_on_ad <- as.factor(data$clicked_on_ad)
+
+str(data$male)
+str(data$clicked_on_ad)
+```
+
+```{r}
+# split timestamp column into year, month, day, and hour
+# NB: minute and second are irrelevant to our analysis
+data$year <- format(as.POSIXct(data$timestamp, format="%Y-%m-%d %H:%M:%S"), "%Y")
+data$month <- format(as.POSIXct(data$timestamp, format="%Y-%m-%d %H:%M:%S"), "%m")
+data$day <- format(as.POSIXct(data$timestamp, format="%Y-%m-%d %H:%M:%S"), "%d")
+data$hour <- format(as.POSIXct(data$timestamp, format="%Y-%m-%d %H:%M:%S"), "%H")
+head(data)
+```
+
+```{r}
+# drop the timestamp column since it is no longer useful
+data$timestamp <- NULL
+colnames(data)
+```
+
+```{r}
+# check the data types of the new columns
+paste("Year:", class(data$year))
+paste("Month:", class(data$month))
+paste("Day:", class(data$day))
+paste("Hour:", class(data$hour))
+```
+
+```{r}
+# set the new columns to be of data type Factor
+data$year <- as.factor(data$year)
+data$month <- as.factor(data$month)
+data$day <- as.factor(data$day)
+data$hour <- as.factor(data$hour)
+```
+
+```{r}
+# move the 'clicked_on_ad' column to the end
+data <- data[, c(1:8, 10:13, 9)]
+head(data)
+```
+```{r}
+str(data)
+```
+
+From this, we see that there is only one value for year (2016), 7 for month (Jan to July), 31 for day and 24 for hour.
+
+We can now proceed to carry out exploratory data analysis.
+
+## 3. Exploratory Data Analysis
+
+### 3.1 Univariate Analysis
+
+#### 3.1.1 Daily Time Spent
+```{r}
+# calculate mean
+mean(data$daily_time_spent)
+```
+```{r}
+# calculate median
+median(data$daily_time_spent)
+```
+
+```{r}
+# create function to calculate mode since R doesn't have an in-built function to do that
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+# now calling the mode function on our column
+getmode(data$daily_time_spent)
+```
+
+```{r}
+# find variance
+var(data$daily_time_spent)
+```
+
+```{r}
+# find standard deviation 
+sd(data$daily_time_spent)
+```
+
+```{r}
+# computing minimum value
+min(data$daily_time_spent)
+```
+
+```{r}
+# computing maximum value
+max(data$daily_time_spent)
+```
+
+```{r}
+# calculate range
+#range(data$daily_time_spent)
+max(data$daily_time_spent) - min(data$daily_time_spent)
+```
+
+```{r}
+# get first quantile
+quantile(data$daily_time_spent, 0.25)
+```
+
+```{r}
+# get third quantile
+quantile(data$daily_time_spent, 0.75)
+```
+
+```{r}
+# get interquantile range
+quantile(data$daily_time_spent, 0.75) - quantile(data$daily_time_spent, 0.25)
+```
+
+```{r}
+# graph boxplot
+boxplot(data$daily_time_spent)
+```
+This variable does not have any outliers.
+
+```{r}
+# find the kurtosis of this variable
+library(moments)
+kurtosis(data$daily_time_spent)
+```
+This kurtosis value is less than 3 implying that the distribution of this variable is platykurtic. This means that there are few to no outliers.
+
+```{r}
+# display histogram
+hist(data$daily_time_spent)
+```
+We see that the distribution of the 'daily_time_spent' variable is not normally distributed. It looks to be negatively skewed. We can confirm it by getting the skewness value.
+
+```{r}
+skewness(data$daily_time_spent)
+```
+This proves that this variable is slightly negatively skewed.
+
+#### 3.1.2 Age
+To save on time and space, I will use the functions that are like shortcuts to what I've done above.
+```{r}
+# getting the minimum, maximum, mean, and quartiles
+summary(data$age)
+```
+
+```{r}
+# getting mode
+getmode(data$age)
+```
+
+```{r}
+# standard deviation
+sd(data$age)
+```
+
+```{r}
+# calculate IQR
+IQR(data$age)
+```
+
+```{r}
+# check for outliers
+boxplot(data$age)
+```
+No outliers.
+
+```{r}
+# check kurtosis
+kurtosis(data$age)
+```
+The distribution is platykurtic implying the existence of few to no outliers.
+
+```{r}
+# check distribution
+hist(data$age)
+```
+The distribution looks almost normal except for the fact that it appears slightly positively skewed. To confirm this, we will test for its skewness.
+
+```{r}
+skewness(data$age)
+```
+This skewness value implies that the distribution is almost fairly symmetrical, so our initial assumption based on just looking at the visualization of the distribution is slightly wrong.
+
+#### 3.1.3 Area Income
+```{r}
+# getting the minimum, maximum, mean, and quartiles
+summary(data$area_income)
+
+# getting mode
+getmode(data$area_income)
+
+# standard deviation
+sd(data$area_income)
+
+# calculate IQR
+IQR(data$area_income)
+```
+
+```{r}
+# check for outliers
+boxplot(data$area_income)
+```
+There are outliers below the 20,000 mark. This is to be expected since people's income varies depending on factors such as their employer/company, their position at work, etc.
+
+```{r}
+# check kurtosis
+kurtosis(data$area_income)
+```
+A kurtosis value of 2.89 indicates that the distribution is platykurtic although it is getting very close to being mesokurtic.
+
+```{r}
+# check distribution
+hist(data$area_income)
+```
+The distribution is negatively skewed.
+
+```{r}
+# check skewness
+skewness(data$area_income)
+```
+
+
+#### 3.1.4 Daily Internet Usage
+```{r}
+# getting the minimum, maximum, mean, and quartiles
+summary(data$daily_internet_usage)
+
+# getting mode
+getmode(data$daily_internet_usage)
+
+# standard deviation
+sd(data$daily_internet_usage)
+
+# calculate IQR
+IQR(data$daily_internet_usage)
+```
+
+```{r}
+# check for outliers
+boxplot(data$daily_internet_usage)
+```
+There are no outliers in this column.
+
+```{r}
+# check kurtosis
+kurtosis(data$daily_internet_usage)
+```
+The distribution is platykurtic.
+
+```{r}
+# check distribution
+hist(data$daily_internet_usage)
+```
+The distribution appears to be relatively uniform and bimodal.
+
+```{r}
+# check skewness
+skewness(data$daily_internet_usage)
+```
+
+
+#### 3.1.5 city
+```{r}
+# displaying the first 6 frequently occurring cities
+library(plyr)
+count_city <- count(data$city)
+count_city_head <- head(arrange(count_city, desc(freq)))
+count_city_head
+```
+
+#### 3.1.6 male
+```{r}
+male_table <- table(data$male)
+male_table
+```
+We see here that 591 are not male while 481 are. To easily visualize this:
+```{r}
+barplot(male_table)
+```
+
+#### 3.1.7 country 
+```{r}
+# displaying the first 10 frequently occuring countries
+count_country <- count(data$country)
+count_country_head <- head(arrange(count_country, desc(freq)), 10)
+count_country_head
+```
+
+#### 3.1.8 month
+```{r}
+# displaying the months in order of most frequently occurring to least frequently occuring
+count_months <- count(data$month)
+arrange(count_months, desc(freq))
+```
+We see here that February is the most frequently occuring month with July being the least frequently occuring month. Could Valentine's Day have something to do with this? LOL.
+
+#### 3.1.9 day
+```{r}
+# displaying top 5 frequently occuring days
+count_days <- count(data$day)
+head(arrange(count_days, desc(freq)), 5)
+```
+The 3rd day is the most frequently occuring day overall. However, to get a more accurate picture of this, we will look at which day occurs most frequently in which month. We will do this in bivariate analysis.
+
+```{r}
+tail(arrange(count_days, desc(freq)), 1)
+```
+The 31st day seems to be the least occurring day. Is it because people are splurging since it's end month?
+
+#### 3.1.10 hour
+```{r}
+# displaying the top 5 hours
+count_hours <- count(data$hour)
+head(arrange(count_hours, desc(freq)), 5)
+```
+Most frequently occurring time appears to be around 7 AM.
+
+```{r}
+tail(arrange(count_hours, desc(freq)), 1)
+```
+Least frequently occurring time appears to be around 10 AM. This is probably because more people get engrossed in the day's work.
+
+#### 3.1.11 clicked on ad
+```{r}
+ad_table <- table(data$clicked_on_ad)
+print(ad_table)
+```
+Looks like the number of people who both clicked on the ad and didn't click on the ad is the same (500 each).
+
+### 3.2 Bivariate Analysis
+#### 3.2.1 Research-specific Bivariate Analysis
+We will start by looking at the relationship between our target variable (clicked_on_ad) and the other variables.
+```{r}
+# how many males clicked on ads
+ad_male.table <- table(data$clicked_on_ad, data$male)
+names(dimnames(ad_male.table)) <- c("Clicked on Ad?", "Male?")
+ad_male.table
+```
+From this we see that of those who clicked on the ad, 269 were female while 231 were male. There was no difference in gender of those who did not click on the ad.
+```{r}
+# ad clicked per month
+ad_month.table <- table(data$month, data$clicked_on_ad)
+names(dimnames(ad_month.table)) <- c("Month", "Clicked on Ad?")
+ad_month.table
+```
+Looking at this table, we see that February reports the highest number of ads clicked and July the least.
+
+```{r}
+# ad clicked per day
+ad_day.table <- table(data$day, data$clicked_on_ad)
+names(dimnames(ad_day.table)) <- c("Day", "Clicked on Ad?")
+ad_day.table
+```
+Day 03 has the highest number of ads clicked. Day 31 has the least.
+
+```{r}
+# ad clicked per hour
+ad_hour.table <- table(data$hour, data$clicked_on_ad)
+names(dimnames(ad_hour.table)) <- c("Hour", "Clicked on Ad?")
+ad_hour.table
+```
+Hour 09 (9 AM) returned the highest number of ads clicked, 28, whereas Hour 10 (10 AM) returned the lowest, 14.
+
+Improving the solution: create a function that returns the highest and lowest values of a specific column so that you do not have to manually go through each individual record.
+
+```{r}
+# ad clicked per country
+ad_country.table <- table(data$country, data$clicked_on_ad)
+names(dimnames(ad_country.table)) <- c("Country", "Clicked on Ad?")
+ad_country.table
+```
+
+```{r}
+# ad clicked per city
+ad_city.table <- table(data$city, data$clicked_on_ad)
+names(dimnames(ad_city.table)) <- c("City", "Clicked on Ad?")
+ad_city.table
+```
+
+```{r}
+head(data$clicked_on_ad, 10)
+```
+
+
+```{r}
+# to work with the other variables which are numeric in nature, we will convert the clicked_on_ad variable to integer
+ad_int <- as.integer(data$clicked_on_ad)
+head(ad_int, 10)
+```
+
+```{r}
+# scatter plot of how daily time spent impacts ad being clicked
+plot(data$daily_time_spent, ad_int, ylab = "Clicked on Ad?", xlab = "Daily Time Spent")
+```
+
+
+```{r}
+# scatter plot of how age impacts ad being clicked
+plot(data$age, ad_int, ylab = "Clicked on Ad?", xlab = "Age")
+```
+
+```{r}
+# scatter plot of how daily internet usage impacts ad being clicked
+plot(data$daily_internet_usage, ad_int, ylab = "Clicked on Ad?", xlab = "Daily Internet Usage")
+```
+
+```{r}
+# scatter plot of how area income impacts ad being clicked
+plot(data$daily_time_spent, ad_int, ylab = "Clicked on Ad?", xlab = "Area Income")
+```
+
+```{r}
+colnames(data)
+```
+
+
+## 4. Conclusion
+We will use the results we have obtained from our exploratory data analysis to make conclusions.
+
+To begin with, we see that the dataset was already slightly biased by having slightly more females than males. Because of this, more females than males clicked on the ad.
+
+People with lower area incomes clicked more on the ad than people with higher area incomes.
+
+People who spent less time online were more likely to click on the ad than people who spent more time online.
+
+The month of February and the 3rd days were prime times for ad clicking. The 31st days and the month of July, not so much.
